@@ -24,11 +24,11 @@ var robberyMoment = robbery.getAppropriateMoment(
         to: '21:00+5'
     }
 );
-
 // Вышлем приглашение:
 // - %DD - день недели (ПН, ВТ, СР, ЧТ, ПТ, СБ, ВС)
 // - %HH - часы
 // - %MM - минуты
+
 console.log(
     robberyMoment.format('Ограбление должно состоятся в %DD. Всем быть готовыми к %HH:%MM!')
 );
@@ -59,3 +59,5 @@ console.log(
     robbery.getStatus(currentMoment, robberyMoment)
 );
 // «До ограбления остался 21 час 1 минута»
+
+
