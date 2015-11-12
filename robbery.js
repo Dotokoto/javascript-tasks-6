@@ -69,7 +69,6 @@ module.exports.getAppropriateMoment = function (json, minDuration, workingHours)
         freeStatus[name] = true;
     });
     freeStatus['bank'] = false;
-    var robbersNumber = robberNames.length + 1;
     for (var i = 0; i < freeTime.length; i++) {
         var timeObject = freeTime[i];
         freeStatus[timeObject.name] = timeObject.free;
