@@ -5,102 +5,27 @@ var MS_IN_MINUTE = 1000 * 60;
 
 var moment = require('./moment');
 
-
 // Выбирает подходящий ближайший момент начала ограбления
 module.exports.getAppropriateMoment = function (json, minDuration, workingHours) {
     var appropriateMoment = moment();
-
-    // 1. Читаем json
-    // 2. Находим подходящий ближайший момент начала ограбления
-    // 3. И записываем в appropriateMoment
     var schedule = JSON.parse(json);
-    var freeTime = [];
     var robberNames = Object.keys(schedule);
-    robberNames.forEach(function (name) {
-        var robber = schedule[name];
-        robber.forEach(function (time) {
-            var timeFrom = moment();
-            timeFrom.date = time.from;
-            var timeTo = moment();
-            timeTo.date = time.to;
-            freeTime.push({
-                name: name,
-                time: timeFrom,
-                free: false
-            });
-            freeTime.push({
-                name: name,
-                time: timeTo,
-                free: true
-            });
-        });
-    });
-    workDays.forEach(function (day) {
-        var timeFrom = moment();
-        timeFrom.date = day + ' ' + workingHours.from;
-        var timeTo = moment();
-        timeTo.date = day + ' ' + workingHours.to;
-        freeTime.push({
-            name: 'bank',
-            time: timeFrom,
-            free: true
-        });
-        freeTime.push({
-            name: 'bank',
-            time: timeTo,
-            free: false
-        });
-    });
-    freeTime.sort(function (a, b) {
-        a = a.time.date;
-        b = b.time.date;
-        if (a > b) {
-            return 1;
-        }
-        if (a < b) {
-            return -1;
-        }
-        if (a === b) {
-            return 0;
-        }
-    });
-    var freeStatus = {};
-    robberNames.forEach(function (name) {
-        freeStatus[name] = true;
-    });
-    freeStatus['bank'] = false;
+    var freeTime = getFreeTime(schedule, workingHours);
+    var freeStatus = setFreeStatus(robberNames, 'bank');
     for (var i = 0; i < freeTime.length; i++) {
         var timeObject = freeTime[i];
         freeStatus[timeObject.name] = timeObject.free;
-        var canRob = true;
-        var names = robberNames.slice(0);
-        names.push('bank');
-        for (var j = 0; j < names.length; j++) {
-            if (!freeStatus[names[j]]) {
-                canRob = false;
-            }
+        if (!checkFreeStatus(freeStatus)) {
+            continue;
         }
-        if (canRob) {
-            var nextBusyTime = '';
-            var j = i;
-            while (!nextBusyTime && j < freeTime.length - 1) {
-                j++;
-                if (!freeTime[j].free) {
-                    nextBusyTime = freeTime[j].time;
-                }
-            }
-            if (!nextBusyTime) {
-                appropriateMoment = timeObject.time;
-                return appropriateMoment;
-            }
-            if ((nextBusyTime.date.getTime() - timeObject.time.date.getTime()) >=
-                MS_IN_MINUTE * minDuration) {
-                appropriateMoment = timeObject.time;
-                return appropriateMoment;
-            }
+        var nextBusyTime = findNextBusyTime(freeTime, i);
+        if (!nextBusyTime ||
+            (nextBusyTime.date.getTime() - timeObject.time.date.getTime()) >=
+            MS_IN_MINUTE * minDuration) {
+            appropriateMoment = timeObject.time;
+            return appropriateMoment;
         }
     }
-    return;
 };
 
 // Возвращает статус ограбления (этот метод уже готов!)
@@ -109,7 +34,91 @@ module.exports.getStatus = function (moment, robberyMoment) {
         // «До ограбления остался 1 день 6 часов 59 минут»
         return robberyMoment.fromMoment(moment);
     }
-
     return 'Ограбление уже идёт!';
 };
 
+function sortDate(a, b) {
+    a = a.time.date.getTime();
+    b = b.time.date.getTime();
+    if (a > b) {
+        return 1;
+    }
+    if (a < b) {
+        return -1;
+    }
+    if (a === b) {
+        return 0;
+    }
+}
+
+function getTimeSegments(timeArray, name, isFreeTime) {
+    var freeTime = [];
+    timeArray.forEach(function (time) {
+        var timeFrom = moment();
+        timeFrom.date = time.from;
+        var timeTo = moment();
+        timeTo.date = time.to;
+        if (timeTo.date.getTime() < timeFrom.date.getTime()) {
+            timeTo.date.setDate(timeTo.date.getDate() + 7);
+        }
+        freeTime.push({
+            name: name,
+            time: timeFrom,
+            free: isFreeTime
+        });
+        freeTime.push({
+            name: name,
+            time: timeTo,
+            free: !isFreeTime
+        });
+    });
+    return freeTime;
+}
+
+function findNextBusyTime(freeTime, index) {
+    var nextBusyTime = '';
+    var j = index;
+    while (!nextBusyTime && j < freeTime.length - 1) {
+        j++;
+        if (!freeTime[j].free) {
+            nextBusyTime = freeTime[j].time;
+        }
+    }
+    return nextBusyTime;
+}
+
+function setFreeStatus(robbers, bankName) {
+    var freeStatus = {};
+    robbers.forEach(function (name) {
+        freeStatus[name] = true;
+    });
+    freeStatus[bankName] = false;
+    return freeStatus;
+}
+
+function checkFreeStatus(freeStatus) {
+    for (var status in freeStatus) {
+        if (!freeStatus[status]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function getFreeTime(schedule, workingHours) {
+    var robberNames = Object.keys(schedule);
+    var freeTime = [];
+    robberNames.forEach(function (name) {
+        var robber = schedule[name];
+        var temp = getTimeSegments(robber, name, false);
+        freeTime = freeTime.concat(temp);
+    });
+    var temp = [];
+    workDays.forEach(function (day) {
+        temp.push({from: day + ' ' + workingHours.from,
+            to: day + ' ' + workingHours.to});
+    });
+    freeTime = freeTime.concat(getTimeSegments(temp, 'bank', true));
+    freeTime.sort(sortDate);
+    return freeTime;
+}
